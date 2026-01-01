@@ -1,6 +1,7 @@
 //// File handling utilities for Telegram Bot API
 //// Provides types and functions for working with files in media uploads
 
+import gleam/bit_array
 import gleam/http/request
 import gleam/httpc
 import gleam/int
@@ -223,12 +224,33 @@ pub fn download_by_path(
 
   use resp <- result.try(
     httpc.send_bits(bits_req)
-    |> result.map_error(fn(_) { "Failed to download file from: " <> url }),
+    |> result.map_error(fn(e) {
+      "Failed to download file from: "
+      <> url
+      <> ", error: "
+      <> string.inspect(e)
+    }),
   )
 
   case resp.status {
     200 -> Ok(resp.body)
-    status -> Error("Download failed with status: " <> int.to_string(status))
+    status -> {
+      let body_preview = case resp.body {
+        <<>> -> ""
+        body -> {
+          let body_str = case bit_array.to_string(body) {
+            Ok(s) -> s
+            Error(_) -> "<binary data>"
+          }
+          ", body: " <> string.slice(body_str, 0, 200)
+        }
+      }
+      Error(
+        "Download failed with status: "
+        <> int.to_string(status)
+        <> body_preview,
+      )
+    }
   }
 }
 
